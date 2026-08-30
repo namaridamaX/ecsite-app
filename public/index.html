@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ecsite 運用コンソール</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="scanline" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="brand-mark">EC</span>
+      <div class="brand-text">
+        <h1>ecsite 運用コンソール</h1>
+        <p class="brand-sub">ALB &rarr; ECS Fargate &rarr; RDS / SQS &rarr; Lambda</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div id="health-pill" class="pill pill-pending">
+        <span class="pill-dot"></span>
+        <span id="health-label">確認中</span>
+      </div>
+      <button id="refresh-all" class="btn btn-ghost">全て更新</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- 商品 -->
+    <section class="panel" aria-labelledby="products-heading">
+      <div class="panel-head">
+        <h2 id="products-heading"><span class="panel-index">01</span>商品</h2>
+        <span class="panel-count" id="products-count">0件</span>
+      </div>
+
+      <form id="product-form" class="stack-form">
+        <div class="field-row">
+          <label>商品名<input type="text" name="name" required maxlength="200" placeholder="例: マグカップ" /></label>
+          <label class="field-narrow">価格(円)<input type="number" name="priceCents" required min="0" step="1" placeholder="1000" /></label>
+          <label class="field-narrow">在庫数<input type="number" name="stock" required min="0" step="1" placeholder="10" /></label>
+        </div>
+        <button type="submit" class="btn btn-accent">商品を登録</button>
+      </form>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>商品名</th><th>単価</th><th>在庫</th><th></th></tr>
+          </thead>
+          <tbody id="products-tbody">
+            <tr class="empty-row"><td colspan="4">読み込み中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 会員 -->
+    <section class="panel" aria-labelledby="members-heading">
+      <div class="panel-head">
+        <h2 id="members-heading"><span class="panel-index">02</span>会員</h2>
+        <span class="panel-count" id="members-count">0件</span>
+      </div>
+
+      <form id="member-form" class="stack-form">
+        <div class="field-row">
+          <label>氏名<input type="text" name="name" required maxlength="100" placeholder="例: 山田太郎" /></label>
+          <label>メールアドレス<input type="email" name="email" required placeholder="taro@example.com" /></label>
+          <label class="field-narrow">パスワード<input type="password" name="password" required minlength="8" placeholder="8文字以上" /></label>
+        </div>
+        <button type="submit" class="btn btn-accent">会員を登録</button>
+      </form>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>氏名</th><th>メールアドレス</th><th>登録日時</th></tr>
+          </thead>
+          <tbody id="members-tbody">
+            <tr class="empty-row"><td colspan="3">読み込み中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 注文(ヒーロー: 非同期処理の可視化) -->
+    <section class="panel panel-hero" aria-labelledby="orders-heading">
+      <div class="panel-head">
+        <h2 id="orders-heading"><span class="panel-index">03</span>注文 &mdash; 非同期処理パイプライン</h2>
+        <label class="poll-toggle">
+          <input type="checkbox" id="poll-toggle" checked />
+          自動更新(2秒)
+        </label>
+      </div>
+
+      <p class="hero-caption">
+        注文は作成直後、API &rarr; SQS &rarr; Lambda の非同期経路で確定処理されます。
+        <strong>PENDING</strong> から <strong>PAID</strong> へ切り替わる瞬間と、確定までの所要時間をこの画面で確認できます。
+      </p>
+
+      <form id="order-form" class="stack-form">
+        <div class="field-row">
+          <label class="field-wide">会員
+            <select name="memberId" id="order-member-select" required>
+              <option value="">会員を選択してください</option>
+            </select>
+          </label>
+          <label class="field-wide">商品
+            <select name="productId" id="order-product-select" required>
+              <option value="">商品を選択してください</option>
+            </select>
+          </label>
+          <label class="field-narrow">数量<input type="number" name="quantity" required min="1" step="1" value="1" /></label>
+        </div>
+        <button type="submit" class="btn btn-accent btn-large">注文を作成する</button>
+      </form>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>注文ID</th><th>会員</th><th>金額</th><th>ステータス</th><th>確定までの時間</th></tr>
+          </thead>
+          <tbody id="orders-tbody">
+            <tr class="empty-row"><td colspan="5">読み込み中…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast-region" aria-live="polite"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

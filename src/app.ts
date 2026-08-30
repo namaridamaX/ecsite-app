@@ -1,4 +1,5 @@
 import express, { Application } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
@@ -13,8 +14,18 @@ import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
 export function createApp(): Application {
   const app = express();
 
-  // セキュリティ関連の標準HTTPヘッダーを設定(実務での必須対応)
-  app.use(helmet());
+  // 管理画面(public/)は同一オリジンから配信するため、CSPで自ホストのスクリプト/スタイルのみ許可する
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'script-src': ["'self'"],
+          'style-src': ["'self'", "'unsafe-inline'"],
+        },
+      },
+    })
+  );
   app.use(cors({ origin: env.CORS_ORIGIN }));
   app.use(express.json({ limit: '1mb' }));
 
@@ -30,6 +41,9 @@ export function createApp(): Application {
   apiRouter.use(memberRouter);
   apiRouter.use(orderRouter);
   app.use('/api', apiRouter);
+
+  // 動作確認用の管理ダッシュボード(静的ファイル)。実行時のカレントは dist/ なので一つ上の public/ を指す。
+  app.use(express.static(path.join(__dirname, '..', 'public')));
 
   app.use(notFoundHandler);
   app.use(errorHandler);

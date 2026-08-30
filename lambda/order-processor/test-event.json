@@ -1,0 +1,8 @@
+{
+  "Records": [
+    {
+      "messageId": "test-message-1",
+      "body": "{\"orderId\":\"8d2ed424-6ed6-4cb8-9217-1cec3318e977\"}"
+    }
+  ]
+}

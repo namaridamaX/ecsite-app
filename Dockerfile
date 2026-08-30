@@ -17,6 +17,7 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY public ./public
 
 RUN npx prisma generate
 RUN npm run build
@@ -39,6 +40,7 @@ WORKDIR /app
 
 COPY --from=builder --chown=appuser:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=appuser:nodejs /app/dist ./dist
+COPY --from=builder --chown=appuser:nodejs /app/public ./public
 COPY --from=builder --chown=appuser:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=appuser:nodejs /app/package.json ./package.json
 
