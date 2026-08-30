@@ -1,0 +1,12 @@
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "web"
+          ContainerPort: 3000
+        # 新バージョンへの切り替え後、コンテナに与える起動猶予(秒)。
+        # ヘルスチェックが通るまでの時間を考慮して設定する。
+        PlatformVersion: "LATEST"

@@ -1,0 +1,38 @@
+version: 0.2
+
+# CodeBuildプロジェクトの環境変数で以下を設定する想定:
+#   AWS_ACCOUNT_ID   : AWSアカウントID
+#   AWS_DEFAULT_REGION : ap-northeast-1
+#   IMAGE_REPO_NAME  : ecsite-dev-ecr-web
+#   CONTAINER_NAME   : web (タスク定義のコンテナ名と一致させる)
+
+phases:
+  pre_build:
+    commands:
+      - echo ECRへログインします
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - REPOSITORY_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME
+      # コミットハッシュの先頭7文字をイメージタグに使い、どのコミットのビルドか追跡できるようにする
+      - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+
+  build:
+    commands:
+      - echo Dockerイメージをビルドします
+      - docker build -t $REPOSITORY_URI:latest -t $REPOSITORY_URI:$IMAGE_TAG .
+
+  post_build:
+    commands:
+      - echo ECRへpushします
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo CodeDeploy用のimageDetail.jsonを生成します
+      - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
+      - cat imageDetail.json
+
+# CodePipelineの「Deploy(CodeDeploy)」ステージに渡す成果物。
+# taskdef.json / appspec.yaml はリポジトリ直下に配置したものをそのまま渡す。
+artifacts:
+  files:
+    - imageDetail.json
+    - taskdef.json
+    - appspec.yaml
