@@ -39,7 +39,8 @@ export const orderController = {
   async create(req: Request, res: Response) {
     const input = createOrderSchema.parse(req.body);
     const order = await orderService.create(input);
-    res.status(201).json(order);
+    // 202 Accepted: 注文は受け付けたが、確定処理(在庫減算等)は非同期で進行中であることを示す
+    res.status(202).json(order);
   },
 
   async updateStatus(req: Request, res: Response) {

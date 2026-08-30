@@ -1,0 +1,20 @@
+{
+  "name": "ecsite-order-processor",
+  "version": "1.0.0",
+  "description": "SQS経由で注文を非同期に確定処理するLambda関数",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "package": "npm run build && npm ci --omit=dev && zip -r function.zip dist node_modules package.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.658.0",
+    "@prisma/client": "^5.20.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^20.16.5",
+    "prisma": "^5.20.0",
+    "typescript": "^5.6.2"
+  }
+}

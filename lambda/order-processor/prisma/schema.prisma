@@ -1,0 +1,83 @@
+// Prisma スキーマ定義
+// STEP2: RDS(PostgreSQL) 上に 商品・会員・注文 テーブルを構築する
+
+generator client {
+  provider      = "prisma-client-js"
+  // AWS Lambda (Node.js 20ランタイム = Amazon Linux 2023, OpenSSL 3.x)向けのバイナリターゲットを追加。
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// 会員(ユーザー)
+model Member {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@map("members")
+}
+
+/// 商品
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  priceCents  Int      @map("price_cents") // 金額は int(セント/銭単位)で保持し浮動小数誤差を避ける
+  stock       Int      @default(0)
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  orderItems OrderItem[]
+
+  @@map("products")
+}
+
+/// 注文ステータス
+enum OrderStatus {
+  PENDING // 注文受付(決済待ち)
+  PAID // 決済完了
+  SHIPPED // 発送済み
+  CANCELLED // キャンセル
+}
+
+/// 注文
+model Order {
+  id          String      @id @default(uuid())
+  memberId    String      @map("member_id")
+  member      Member      @relation(fields: [memberId], references: [id])
+  status      OrderStatus @default(PENDING)
+  totalCents  Int         @map("total_cents")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  items OrderItem[]
+
+  @@map("orders")
+  @@index([memberId])
+}
+
+/// 注文明細(注文と商品の中間テーブル)
+model OrderItem {
+  id         String  @id @default(uuid())
+  orderId    String  @map("order_id")
+  order      Order   @relation(fields: [orderId], references: [id])
+  productId  String  @map("product_id")
+  product    Product @relation(fields: [productId], references: [id])
+  quantity   Int
+  priceCents Int     @map("price_cents") // 注文時点の単価スナップショット
+
+  @@map("order_items")
+  @@index([orderId])
+  @@index([productId])
+}

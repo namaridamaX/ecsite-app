@@ -9,6 +9,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   CORS_ORIGIN: z.string().default('*'),
+  // STEP4: 注文確定処理を非同期化するためのSQSキューURL
+  ORDER_QUEUE_URL: z.string().min(1, 'ORDER_QUEUE_URL is required'),
 });
 
 export type Env = z.infer<typeof envSchema>;
