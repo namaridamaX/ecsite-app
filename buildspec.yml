@@ -1,10 +1,15 @@
 version: 0.2
 
 # CodeBuildプロジェクトの環境変数で以下を設定する想定:
-#   AWS_ACCOUNT_ID   : AWSアカウントID
+#   AWS_ACCOUNT_ID     : AWSアカウントID
 #   AWS_DEFAULT_REGION : ap-northeast-1
-#   IMAGE_REPO_NAME  : ecsite-dev-ecr-web
-#   CONTAINER_NAME   : web (タスク定義のコンテナ名と一致させる)
+#   IMAGE_REPO_NAME    : ecsite-dev-ecr-web
+#   CONTAINER_NAME     : web (タスク定義のコンテナ名と一致させる)
+#
+# ECSネイティブBlue/Greenデプロイでは、Blue/Greenの制御自体はECSサービス側の設定
+# (deploymentStrategy)に組み込まれているため、CodeBuild/CodePipeline側は
+# 「イメージをビルドしてECRにpushし、新しいイメージURIを伝える」だけで完結する。
+# CodeDeploy用のtaskdef.json / appspec.yamlは不要。
 
 phases:
   pre_build:
@@ -25,14 +30,12 @@ phases:
       - echo ECRへpushします
       - docker push $REPOSITORY_URI:latest
       - docker push $REPOSITORY_URI:$IMAGE_TAG
-      - echo CodeDeploy用のimageDetail.jsonを生成します
-      - printf '{"ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
-      - cat imageDetail.json
+      - echo CodePipelineのECS標準デプロイアクション用にimagedefinitions.jsonを生成します
+      - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_NAME $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - cat imagedefinitions.json
 
-# CodePipelineの「Deploy(CodeDeploy)」ステージに渡す成果物。
-# taskdef.json / appspec.yaml はリポジトリ直下に配置したものをそのまま渡す。
+# CodePipelineの「Deploy(Amazon ECS標準デプロイアクション)」ステージが
+# このファイル名を直接参照する(デフォルト名: imagedefinitions.json)。
 artifacts:
   files:
-    - imageDetail.json
-    - taskdef.json
-    - appspec.yaml
+    - imagedefinitions.json
