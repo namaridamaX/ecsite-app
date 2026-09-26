@@ -13,6 +13,8 @@ const envSchema = z.object({
   ORDER_QUEUE_URL: z.string().min(1, 'ORDER_QUEUE_URL is required'),
   REDIS_HOST: z.string().min(1, 'REDIS_HOST is required'),
   REDIS_PORT: z.coerce.number().default(6379),
+  CART_TABLE_NAME: z.string().min(1, 'CART_TABLE_NAME is required'),
+  BROWSING_HISTORY_TABLE_NAME: z.string().min(1, 'BROWSING_HISTORY_TABLE_NAME is required'),
 });
 
 export type Env = z.infer<typeof envSchema>;

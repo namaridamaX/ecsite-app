@@ -5,6 +5,8 @@ const state = {
   products: [],
   members: [],
   orders: [],
+  cart: [],
+  history: [],
 };
 
 const el = (id) => document.getElementById(id);
@@ -54,6 +56,8 @@ async function refreshProducts() {
   state.products = data.items;
   renderProducts();
   renderOrderProductOptions();
+  renderCartProductOptions();
+  renderHistoryProductOptions();
 }
 
 function formatYen(cents) {
@@ -92,12 +96,38 @@ function renderOrderProductOptions() {
   select.value = current;
 }
 
+function renderCartProductOptions() {
+  const select = el('cart-product-select');
+  const current = select.value;
+  select.innerHTML =
+    '<option value="">商品を選択してください</option>' +
+    state.products
+      .filter((p) => p.isActive)
+      .map((p) => `<option value="${p.id}">${escapeHtml(p.name)} — ${formatYen(p.priceCents)}</option>`)
+      .join('');
+  select.value = current;
+}
+
+function renderHistoryProductOptions() {
+  const select = el('history-product-select');
+  const current = select.value;
+  select.innerHTML =
+    '<option value="">商品を選択してください</option>' +
+    state.products
+      .filter((p) => p.isActive)
+      .map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`)
+      .join('');
+  select.value = current;
+}
+
 /* ---------- 会員 ---------- */
 async function refreshMembers() {
   const data = await api('/api/members?pageSize=50');
   state.members = data.items;
   renderMembers();
   renderOrderMemberOptions();
+  renderCartMemberOptions();
+  renderHistoryMemberOptions();
 }
 
 function renderMembers() {
@@ -121,6 +151,24 @@ function renderMembers() {
 
 function renderOrderMemberOptions() {
   const select = el('order-member-select');
+  const current = select.value;
+  select.innerHTML =
+    '<option value="">会員を選択してください</option>' +
+    state.members.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}(${escapeHtml(m.email)})</option>`).join('');
+  select.value = current;
+}
+
+function renderCartMemberOptions() {
+  const select = el('cart-member-select');
+  const current = select.value;
+  select.innerHTML =
+    '<option value="">会員を選択してください</option>' +
+    state.members.map((m) => `<option value="${m.id}">${escapeHtml(m.name)}(${escapeHtml(m.email)})</option>`).join('');
+  select.value = current;
+}
+
+function renderHistoryMemberOptions() {
+  const select = el('history-member-select');
   const current = select.value;
   select.innerHTML =
     '<option value="">会員を選択してください</option>' +
@@ -156,6 +204,80 @@ function renderOrders() {
         <td class="mono">${formatYen(o.totalCents)}</td>
         <td><span class="status-badge status-${o.status}">${o.status}</span></td>
         <td>${elapsedLabel}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+/* ---------- カート ---------- */
+async function refreshCart() {
+  const memberId = el('cart-member-select').value;
+  if (!memberId) {
+    state.cart = [];
+    renderCart();
+    return;
+  }
+  state.cart = await api(`/api/cart/${memberId}`);
+  renderCart();
+}
+
+function renderCart() {
+  const tbody = el('cart-tbody');
+  el('cart-count').textContent = `${state.cart.length}件`;
+  const memberId = el('cart-member-select').value;
+  if (!memberId) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">会員を選択してください</td></tr>';
+    return;
+  }
+  if (state.cart.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">カートは空です</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.cart
+    .map((item) => {
+      const product = state.products.find((p) => p.id === item.productId);
+      return `
+      <tr data-product-id="${item.productId}">
+        <td>${product ? escapeHtml(product.name) : '(不明な商品)'}</td>
+        <td class="mono">${item.quantity}</td>
+        <td class="mono">${formatDate(item.addedAt)}</td>
+        <td><button class="icon-btn" data-action="delete-cart-item" data-product-id="${item.productId}">削除</button></td>
+      </tr>`;
+    })
+    .join('');
+}
+
+/* ---------- 閲覧履歴 ---------- */
+async function refreshHistory() {
+  const memberId = el('history-member-select').value;
+  if (!memberId) {
+    state.history = [];
+    renderHistory();
+    return;
+  }
+  state.history = await api(`/api/browsing-history/${memberId}`);
+  renderHistory();
+}
+
+function renderHistory() {
+  const tbody = el('history-tbody');
+  el('history-count').textContent = `${state.history.length}件`;
+  const memberId = el('history-member-select').value;
+  if (!memberId) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="2">会員を選択してください</td></tr>';
+    return;
+  }
+  if (state.history.length === 0) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="2">閲覧履歴はまだありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = state.history
+    .map((item) => {
+      const product = state.products.find((p) => p.id === item.productId);
+      return `
+      <tr>
+        <td>${product ? escapeHtml(product.name) : '(不明な商品)'}</td>
+        <td class="mono">${formatDate(item.viewedAt)}</td>
       </tr>`;
     })
     .join('');
@@ -237,6 +359,68 @@ el('order-form').addEventListener('submit', async (e) => {
   }
 });
 
+el('cart-add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const memberId = el('cart-member-select').value;
+  if (!memberId) {
+    showToast('対象会員を選択してください', 'error');
+    return;
+  }
+  const form = e.target;
+  const fd = new FormData(form);
+  const productId = fd.get('productId');
+  const quantity = Number(fd.get('quantity'));
+  if (!productId) {
+    showToast('商品を選択してください', 'error');
+    return;
+  }
+  try {
+    await api(`/api/cart/${memberId}`, {
+      method: 'POST',
+      body: JSON.stringify({ productId, quantity }),
+    });
+    form.reset();
+    showToast('カートに追加しました', 'success');
+    await refreshCart();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+el('history-record-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const memberId = el('history-member-select').value;
+  if (!memberId) {
+    showToast('対象会員を選択してください', 'error');
+    return;
+  }
+  const form = e.target;
+  const fd = new FormData(form);
+  const productId = fd.get('productId');
+  if (!productId) {
+    showToast('商品を選択してください', 'error');
+    return;
+  }
+  try {
+    await api(`/api/browsing-history/${memberId}`, {
+      method: 'POST',
+      body: JSON.stringify({ productId }),
+    });
+    showToast('閲覧履歴を記録しました', 'success');
+    await refreshHistory();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+/* ---------- 対象会員切り替え ---------- */
+el('cart-member-select').addEventListener('change', () => {
+  refreshCart().catch((err) => showToast(err.message, 'error'));
+});
+el('history-member-select').addEventListener('change', () => {
+  refreshHistory().catch((err) => showToast(err.message, 'error'));
+});
+
 /* ---------- 削除操作(イベント委譲) ---------- */
 el('products-tbody').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-action="delete-product"]');
@@ -245,6 +429,19 @@ el('products-tbody').addEventListener('click', async (e) => {
     await api(`/api/products/${btn.dataset.id}`, { method: 'DELETE' });
     showToast('商品を削除しました', 'success');
     await refreshProducts();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+el('cart-tbody').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-action="delete-cart-item"]');
+  if (!btn) return;
+  const memberId = el('cart-member-select').value;
+  try {
+    await api(`/api/cart/${memberId}/${btn.dataset.productId}`, { method: 'DELETE' });
+    showToast('カートから削除しました', 'success');
+    await refreshCart();
   } catch (err) {
     showToast(err.message, 'error');
   }

@@ -370,3 +370,7 @@ tbody tr:last-child td { border-bottom: none; }
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+.stack-form-tight {
+  border-bottom: none;
+  padding-bottom: 0;
+}

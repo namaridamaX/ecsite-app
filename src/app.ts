@@ -10,6 +10,8 @@ import { productRouter } from './routes/product.routes';
 import { memberRouter } from './routes/member.routes';
 import { orderRouter } from './routes/order.routes';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
+import { cartRouter } from './routes/cart.routes';
+import { browsingHistoryRouter } from './routes/browsingHistory.routes';
 
 export function createApp(): Application {
   const app = express();
@@ -47,6 +49,9 @@ export function createApp(): Application {
 
   app.use(notFoundHandler);
   app.use(errorHandler);
+
+  app.use('/api/cart', cartRouter);
+  app.use('/api/browsing-history', browsingHistoryRouter);
 
   return app;
 }
