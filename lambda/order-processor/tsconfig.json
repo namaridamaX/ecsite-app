@@ -12,5 +12,5 @@
     "resolveJsonModule": true,
     "sourceMap": false
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "../../src/db/redis.ts"]
 }

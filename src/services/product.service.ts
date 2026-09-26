@@ -112,7 +112,7 @@ export const productService = {
     await this.getById(id); // 存在確認(404を明示的に返すため)
     const product = await prisma.product.update({ where: { id }, data: input });
     await Promise.all([
-      redisClient.del(detailCacheKey(id)).catch((err) => console.error('Redis del failed', err)),
+      redisClient.del(detailCacheKey(id)).catch((err: unknown) => console.error('Redis del failed', err)),
       invalidateListCache(),
     ]);
     return product;
@@ -123,7 +123,7 @@ export const productService = {
     // 物理削除ではなく論理削除にする(注文履歴の整合性を保つ実務パターン)
     const product = await prisma.product.update({ where: { id }, data: { isActive: false } });
     await Promise.all([
-      redisClient.del(detailCacheKey(id)).catch((err) => console.error('Redis del failed', err)),
+      redisClient.del(detailCacheKey(id)).catch((err: unknown) => console.error('Redis del failed', err)),
       invalidateListCache(),
     ]);
     return product;
