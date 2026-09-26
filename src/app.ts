@@ -44,14 +44,14 @@ export function createApp(): Application {
   apiRouter.use(orderRouter);
   app.use('/api', apiRouter);
 
+  app.use('/api/cart', cartRouter);
+  app.use('/api/browsing-history', browsingHistoryRouter);
+
   // 動作確認用の管理ダッシュボード(静的ファイル)。実行時のカレントは dist/ なので一つ上の public/ を指す。
   app.use(express.static(path.join(__dirname, '..', 'public')));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
-
-  app.use('/api/cart', cartRouter);
-  app.use('/api/browsing-history', browsingHistoryRouter);
 
   return app;
 }
