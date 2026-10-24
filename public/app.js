@@ -21,15 +21,168 @@ function showToast(message, kind = 'default') {
   setTimeout(() => toast.remove(), 4000);
 }
 
+/* ---------- 認証(Cognito Hosted UI + PKCE) ---------- */
+// IDトークンはタブを閉じると消える sessionStorage に保存する(学習用の簡易実装)。
+const AUTH_KEYS = { token: 'ecsite.idToken', verifier: 'ecsite.pkceVerifier' };
+let authConfig = null;
+
+function randomString(length) {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => ('0' + b.toString(16)).slice(-2)).join('').slice(0, length);
+}
+
+async function sha256Base64Url(text) {
+  const data = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const bin = String.fromCharCode(...new Uint8Array(digest));
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(part)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function getIdToken() {
+  try {
+    const token = sessionStorage.getItem(AUTH_KEYS.token);
+    if (!token) return null;
+    const payload = decodeJwtPayload(token);
+    if (!payload || payload.exp * 1000 < Date.now()) {
+      sessionStorage.removeItem(AUTH_KEYS.token);
+      return null;
+    }
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+async function login() {
+  if (!authConfig) {
+    showToast('認証設定を取得できていません', 'error');
+    return;
+  }
+  const verifier = randomString(64);
+  sessionStorage.setItem(AUTH_KEYS.verifier, verifier);
+  const challenge = await sha256Base64Url(verifier);
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: authConfig.clientId,
+    redirect_uri: `${window.location.origin}/`,
+    scope: 'openid email',
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  });
+  window.location.assign(`${authConfig.domain}/oauth2/authorize?${params.toString()}`);
+}
+
+function logout() {
+  try {
+    sessionStorage.removeItem(AUTH_KEYS.token);
+  } catch {
+    // 保存先が使えない環境では何もしない
+  }
+  state.cart = [];
+  state.history = [];
+  renderCart();
+  renderHistory();
+  renderAuthBar();
+  showToast('ログアウトしました');
+}
+
+// Cognitoからの戻り(?code=...)を受け取り、トークンに交換する
+async function handleAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code || !authConfig) return;
+
+  const verifier = sessionStorage.getItem(AUTH_KEYS.verifier);
+  window.history.replaceState({}, '', window.location.pathname);
+  if (!verifier) {
+    showToast('ログイン情報が見つかりません。もう一度ログインしてください', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${authConfig.domain}/oauth2/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: authConfig.clientId,
+        code,
+        redirect_uri: `${window.location.origin}/`,
+        code_verifier: verifier,
+      }),
+    });
+    const body = await res.json();
+    if (!res.ok || !body.id_token) {
+      throw new Error(body.error || 'トークンを取得できませんでした');
+    }
+    sessionStorage.setItem(AUTH_KEYS.token, body.id_token);
+    sessionStorage.removeItem(AUTH_KEYS.verifier);
+    showToast('ログインしました', 'success');
+  } catch (err) {
+    showToast(`ログインに失敗しました: ${err.message}`, 'error');
+  }
+}
+
+// 画面右下のログイン状態バー(index.htmlを触らずにJSから差し込む)
+function renderAuthBar() {
+  let bar = document.getElementById('auth-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'auth-bar';
+    bar.style.cssText =
+      'position:fixed;right:16px;bottom:16px;z-index:1000;display:flex;gap:12px;align-items:center;' +
+      'padding:8px 12px;border:1px solid GrayText;border-radius:8px;background:Canvas;color:CanvasText;font:14px sans-serif;';
+    document.body.appendChild(bar);
+  }
+  bar.textContent = '';
+
+  const label = document.createElement('span');
+  const button = document.createElement('button');
+  button.type = 'button';
+
+  const token = getIdToken();
+  if (token) {
+    const payload = decodeJwtPayload(token);
+    label.textContent = `ログイン中: ${payload && payload.email ? payload.email : '(不明)'}`;
+    button.textContent = 'ログアウト';
+    button.addEventListener('click', logout);
+  } else {
+    label.textContent = '未ログイン';
+    button.textContent = 'ログイン';
+    button.addEventListener('click', () => {
+      login().catch((err) => showToast(err.message, 'error'));
+    });
+  }
+  bar.append(label, button);
+}
+
 /* ---------- 共通fetchラッパー ---------- */
 async function api(path, options = {}) {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const token = getIdToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(path, { ...options, headers });
   const isJson = res.headers.get('content-type')?.includes('application/json');
   const body = isJson ? await res.json() : null;
   if (!res.ok) {
+    if (res.status === 401) renderAuthBar(); // 期限切れのときは表示を「未ログイン」に更新する
     const message = body?.error?.message || `リクエストに失敗しました (${res.status})`;
     throw new Error(message);
   }
@@ -475,6 +628,16 @@ el('poll-toggle').addEventListener('change', (e) => {
 });
 
 /* ---------- 初期化 ---------- */
-refreshAll()
-  .then(() => startPolling())
-  .catch((err) => showToast(err.message, 'error'));
+async function init() {
+  try {
+    authConfig = await api('/auth-config');
+  } catch {
+    authConfig = null;
+  }
+  await handleAuthCallback(); // Cognitoから戻ってきた場合はここでトークンに交換する
+  renderAuthBar();
+  await refreshAll();
+  startPolling();
+}
+
+init().catch((err) => showToast(err.message, 'error'));

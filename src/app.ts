@@ -10,13 +10,15 @@ import { productRouter } from './routes/product.routes';
 import { memberRouter } from './routes/member.routes';
 import { orderRouter } from './routes/order.routes';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
+import { requireAuth } from './middlewares/auth';
 import { cartRouter } from './routes/cart.routes';
 import { browsingHistoryRouter } from './routes/browsingHistory.routes';
 
 export function createApp(): Application {
   const app = express();
 
-  // 管理画面(public/)は同一オリジンから配信するため、CSPで自ホストのスクリプト/スタイルのみ許可する
+  // 管理画面(public/)は同一オリジンから配信するため、CSPで自ホストのスクリプト/スタイルのみ許可する。
+  // ログイン時にブラウザからCognitoのトークンエンドポイントを呼ぶため、connect-srcにCognitoドメインを追加している。
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -24,6 +26,7 @@ export function createApp(): Application {
           ...helmet.contentSecurityPolicy.getDefaultDirectives(),
           'script-src': ["'self'"],
           'style-src': ["'self'", "'unsafe-inline'"],
+          'connect-src': ["'self'", env.COGNITO_DOMAIN],
         },
       },
     })
@@ -37,6 +40,11 @@ export function createApp(): Application {
   // ヘルスチェックはprefixなしのルート直下(ALBのヘルスチェックパス設定を単純にするため)
   app.use(healthRouter);
 
+  // 画面(public/app.js)がログイン先を知るための公開設定。秘密情報は含まない。
+  app.get('/auth-config', (_req, res) => {
+    res.json({ domain: env.COGNITO_DOMAIN, clientId: env.COGNITO_CLIENT_ID });
+  });
+
   // APIは /api プレフィックスに統一
   const apiRouter = express.Router();
   apiRouter.use(productRouter);
@@ -44,8 +52,9 @@ export function createApp(): Application {
   apiRouter.use(orderRouter);
   app.use('/api', apiRouter);
 
-  app.use('/api/cart', cartRouter);
-  app.use('/api/browsing-history', browsingHistoryRouter);
+  // カートと閲覧履歴はログイン必須
+  app.use('/api/cart', requireAuth, cartRouter);
+  app.use('/api/browsing-history', requireAuth, browsingHistoryRouter);
 
   // 動作確認用の管理ダッシュボード(静的ファイル)。実行時のカレントは dist/ なので一つ上の public/ を指す。
   app.use(express.static(path.join(__dirname, '..', 'public')));

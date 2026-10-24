@@ -15,6 +15,10 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().default(6379),
   CART_TABLE_NAME: z.string().min(1, 'CART_TABLE_NAME is required'),
   BROWSING_HISTORY_TABLE_NAME: z.string().min(1, 'BROWSING_HISTORY_TABLE_NAME is required'),
+  // STEP5: Cognito認証
+  COGNITO_USER_POOL_ID: z.string().min(1, 'COGNITO_USER_POOL_ID is required'),
+  COGNITO_CLIENT_ID: z.string().min(1, 'COGNITO_CLIENT_ID is required'),
+  COGNITO_DOMAIN: z.string().min(1, 'COGNITO_DOMAIN is required'),
 });
 
 export type Env = z.infer<typeof envSchema>;
