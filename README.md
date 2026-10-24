@@ -39,6 +39,26 @@ docker compose up --build
 curl http://localhost:3000/health
 ```
 
+## AWS環境の起動・停止(作業開始時/終了時)
+
+課金を抑えるため、NAT Gateway・ALB・ElastiCache・DNS・RDS・ECS は作業時のみ起動する。
+
+**作業開始時**に必ず実行:
+
+```powershell
+.\infra\stoppable\start.ps1
+```
+
+RDS起動 → `terraform apply`(NAT, ALB, Redis, DNS)→ ECS起動(desired count 1)→ ヘルスチェックの順に実行される。
+
+**作業終了時**に必ず実行:
+
+```powershell
+.\infra\stoppable\stop.ps1
+```
+
+ECS停止(desired count 0)→ `terraform destroy`(NAT, ALB, Redis, DNS)→ RDS停止の順に実行される。停止し忘れると課金が発生し続けるので注意。
+
 ## 主なAPIエンドポイント
 
 | メソッド | パス | 内容 |
